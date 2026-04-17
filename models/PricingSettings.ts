@@ -30,6 +30,13 @@ export interface IPricingSettings extends Document {
   otpServiceMarkups: IOtpServiceMarkup[];
   /** Extra markup on top of global rental, keyed by area code e.g. US, CA */
   rentalAreaMarkups: IRentalAreaMarkup[];
+  /**
+   * Percentage surcharge applied on top of crypto top-up amounts to protect
+   * against coin-price volatility and CloudPaya processing fees.
+   * Example: user wants to credit $20, markup is 3% → CloudPaya invoices $20.60.
+   * Range: 0–50 (%). Default 0.
+   */
+  cryptoTopupMarkupPercent: number;
   updatedAt: Date;
 }
 
@@ -70,6 +77,7 @@ const PricingSettingsSchema = new Schema<IPricingSettings>(
       ],
       default: [],
     },
+    cryptoTopupMarkupPercent: { type: Number, default: 0, min: 0, max: 50 },
   },
   { timestamps: true }
 );

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Building2, Loader2, MessageSquare, Phone, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { useCurrency } from "@/lib/currency-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,10 +65,6 @@ function Flag({ code }: { code: string }) {
   );
 }
 
-function fmtINR(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-}
-
 function fmtDate(s: string) {
   try {
     return new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
@@ -78,6 +75,7 @@ function fmtDate(s: string) {
 
 export default function RentPage() {
   const { refreshUser } = useAuth();
+  const { format: fmtINR } = useCurrency();
   const [tab, setTab] = useState("browse");
 
   const [areas, setAreas] = useState<RentalArea[]>([]);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Loader2, Search, Phone, Globe, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { useCurrency } from "@/lib/currency-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,12 +46,9 @@ function FlagImg({ code, size = 24 }: { code: string; size?: number }) {
   );
 }
 
-function fmtINR(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-
 export default function BuyNumberPage() {
   const { refreshUser } = useAuth();
+  const { format: fmt, currency: displayCurrency } = useCurrency();
   const [step, setStep] = useState<Step>(1);
 
   const [countryQuery, setCountryQuery] = useState("");
@@ -293,14 +291,10 @@ export default function BuyNumberPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-800 group-hover:text-sky-700">{p.project_title}</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">
-                      <span className="font-mono">{p.total_count.toLocaleString()}</span> numbers ·{" "}
-                      {p.cost_usd != null ? (
-                        <span className="text-slate-500">${p.cost_usd.toFixed(2)} USD → </span>
-                      ) : null}
-                      INR
+                      <span className="font-mono">{p.total_count.toLocaleString()}</span> numbers available
                     </p>
                   </div>
-                  <Badge className="shrink-0 bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700">{fmtINR(p.cost)}</Badge>
+                  <Badge className="shrink-0 bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700">{fmt(p.cost)}</Badge>
                 </button>
               ))}
             </div>
@@ -330,10 +324,10 @@ export default function BuyNumberPage() {
               </div>
               <div>
                 <Label className="text-[11px] text-slate-500 uppercase tracking-wider">Price (wallet)</Label>
-                <p className="mt-2 font-mono text-2xl font-bold text-sky-700">{fmtINR(selectedService.cost)}</p>
-                {selectedService.cost_usd != null && (
+                <p className="mt-2 font-mono text-2xl font-bold text-sky-700">{fmt(selectedService.cost)}</p>
+                {displayCurrency !== "INR" && (
                   <p className="mt-1 text-xs text-slate-400">
-                    Supplier: ${selectedService.cost_usd.toFixed(2)} USD → your INR (admin FX + markups)
+                    ≈ {fmt(selectedService.cost, { currency: "INR" })} debited from your INR wallet
                   </p>
                 )}
               </div>

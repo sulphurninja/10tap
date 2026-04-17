@@ -7,6 +7,7 @@ import {
   ArrowUpRight, Clock, Zap,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useCurrency } from "@/lib/currency-context";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,6 @@ type OrderRow = {
   cost: number;
   createdAt: string;
 };
-
-function formatINR(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-}
 
 function formatDate(d: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(d));
@@ -71,6 +68,7 @@ const statusColors: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { format } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [recent, setRecent] = useState<OrderRow[]>([]);
@@ -98,9 +96,9 @@ export default function DashboardPage() {
   const totalSpent = orders.reduce((acc, o) => acc + (o.status !== "cancelled" ? o.cost : 0), 0);
 
   const stats = [
-    { label: "Wallet Balance", value: user ? formatINR(user.walletBalance) : "—", sub: "Available to spend", icon: CreditCard, color: "from-sky-500 to-cyan-400", iconBg: "bg-sky-50 text-sky-600" },
+    { label: "Wallet Balance", value: user ? format(user.walletBalance) : "—", sub: "Available to spend", icon: CreditCard, color: "from-sky-500 to-cyan-400", iconBg: "bg-sky-50 text-sky-600" },
     { label: "Total Orders", value: loading ? "—" : String(totalOrders), sub: `${completed} completed`, icon: ShoppingBag, color: "from-emerald-500 to-teal-400", iconBg: "bg-emerald-50 text-emerald-600" },
-    { label: "Total Spent", value: loading ? "—" : formatINR(totalSpent), sub: "Lifetime usage", icon: TrendingUp, color: "from-violet-500 to-purple-400", iconBg: "bg-violet-50 text-violet-600" },
+    { label: "Total Spent", value: loading ? "—" : format(totalSpent), sub: "Lifetime usage", icon: TrendingUp, color: "from-violet-500 to-purple-400", iconBg: "bg-violet-50 text-violet-600" },
     { label: "Active", value: loading ? "—" : String(pending), sub: "Waiting for OTP", icon: Clock, color: "from-amber-500 to-orange-400", iconBg: "bg-amber-50 text-amber-600" },
   ];
 
@@ -234,7 +232,7 @@ export default function DashboardPage() {
                     <TableCell className="font-medium text-slate-900">{o.projectName}</TableCell>
                     <TableCell className="text-slate-600">{o.countryName}</TableCell>
                     <TableCell className="font-mono text-sm text-slate-700">{o.number || "—"}</TableCell>
-                    <TableCell className="font-mono text-sm text-slate-700">{formatINR(o.cost)}</TableCell>
+                    <TableCell className="font-mono text-sm text-slate-700">{format(o.cost)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn("text-[11px]", statusColors[o.status] ?? "")}>
                         {o.status}

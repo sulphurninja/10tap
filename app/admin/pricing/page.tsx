@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Percent, IndianRupee, Save } from "lucide-react";
+import { Loader2, Percent, IndianRupee, Save, Bitcoin } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ type SettingsPayload = {
   globalRentalMarkup: MarkupRule;
   otpServiceMarkups: { projectId: number; markup: MarkupRule }[];
   rentalAreaMarkups: { areaCode: string; markup: MarkupRule }[];
+  cryptoTopupMarkupPercent: number;
 };
 
 export default function AdminPricingPage() {
@@ -49,6 +50,7 @@ export default function AdminPricingPage() {
         globalRentalMarkup: s.globalRentalMarkup ?? { type: "percent", value: 0 },
         otpServiceMarkups: s.otpServiceMarkups ?? [],
         rentalAreaMarkups: s.rentalAreaMarkups ?? [],
+        cryptoTopupMarkupPercent: Number(s.cryptoTopupMarkupPercent ?? 0),
       });
     } finally {
       setLoading(false);
@@ -107,24 +109,76 @@ export default function AdminPricingPage() {
         </p>
       </div>
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle>Base FX rate</CardTitle>
-          <CardDescription>How many INR for 1 USD before markups (stored in database).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Label htmlFor="rate">USD → INR</Label>
-          <Input
-            id="rate"
-            type="number"
-            min={1}
-            step={0.01}
-            className="mt-1 max-w-xs"
-            value={form.usdInrRate}
-            onChange={(e) => setForm({ ...form, usdInrRate: Number(e.target.value) })}
-          />
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle>Base FX rate</CardTitle>
+            <CardDescription>How many INR for 1 USD before markups (stored in database).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Label htmlFor="rate">USD → INR</Label>
+            <Input
+              id="rate"
+              type="number"
+              min={1}
+              step={0.01}
+              className="mt-1"
+              value={form.usdInrRate}
+              onChange={(e) => setForm({ ...form, usdInrRate: Number(e.target.value) })}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Drives product prices <em>and</em> the USD → INR conversion for crypto top-ups.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bitcoin className="size-4 text-amber-600" />
+              Crypto top-up markup
+            </CardTitle>
+            <CardDescription>
+              Extra percentage added to the USD amount we invoice on CloudPaya. Protects
+              against coin-price volatility and payment-processor fees.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Label htmlFor="crypto-markup">Markup (%)</Label>
+            <div className="mt-1 flex items-center gap-2">
+              <Input
+                id="crypto-markup"
+                type="number"
+                min={0}
+                max={50}
+                step={0.1}
+                className="max-w-32"
+                value={form.cryptoTopupMarkupPercent}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    cryptoTopupMarkupPercent: Math.max(
+                      0,
+                      Math.min(50, Number(e.target.value))
+                    ),
+                  })
+                }
+              />
+              <span className="text-sm text-slate-500">%</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Example at{" "}
+              <strong>{form.cryptoTopupMarkupPercent.toFixed(2)}%</strong>: user
+              wants to credit <strong>$20</strong> → CloudPaya invoices{" "}
+              <strong>
+                ${(20 * (1 + form.cryptoTopupMarkupPercent / 100)).toFixed(2)}
+              </strong>
+              , wallet gets credited{" "}
+              <strong>₹{(20 * form.usdInrRate).toFixed(0)}</strong>.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border-slate-200">

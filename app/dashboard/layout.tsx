@@ -10,6 +10,8 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { CurrencyProvider, useCurrency } from "@/lib/currency-context";
+import { CurrencySwitcher } from "@/components/currency-switcher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +22,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-function fmtBal(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-}
 
 const mainNav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, desc: "Dashboard home" },
@@ -98,6 +96,7 @@ function NavLinks({ onNav, compact }: { onNav?: () => void; compact?: boolean })
 function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const { format: formatAmount } = useCurrency();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) {
@@ -190,11 +189,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Currency switcher */}
+            <CurrencySwitcher />
+
             {/* Wallet pill */}
             <Link href="/dashboard/wallet" className="hidden sm:block">
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-sm transition-colors hover:border-sky-200 hover:bg-sky-50/50">
                 <CreditCard className="size-3.5 text-sky-600" />
-                <span className="font-mono text-xs font-semibold text-slate-700">{fmtBal(user.walletBalance ?? 0)}</span>
+                <span className="font-mono text-xs font-semibold text-slate-700">{formatAmount(user.walletBalance ?? 0)}</span>
                 <Badge className="h-5 bg-sky-100 text-[10px] font-semibold text-sky-700 hover:bg-sky-100">Top Up</Badge>
               </div>
             </Link>
@@ -220,7 +222,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                     <p className="text-xs text-slate-500">{user.email}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[10px] font-semibold text-sky-700">{user.role === "admin" ? "Admin" : "Member"}</Badge>
-                      <span className="font-mono text-[11px] text-slate-500">{fmtBal(user.walletBalance)}</span>
+                      <span className="font-mono text-[11px] text-slate-500">{formatAmount(user.walletBalance)}</span>
                     </div>
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
@@ -246,5 +248,11 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <AuthProvider><Shell>{children}</Shell></AuthProvider>;
+  return (
+    <AuthProvider>
+      <CurrencyProvider>
+        <Shell>{children}</Shell>
+      </CurrencyProvider>
+    </AuthProvider>
+  );
 }

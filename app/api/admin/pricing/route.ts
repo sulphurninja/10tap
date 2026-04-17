@@ -68,12 +68,14 @@ export async function PUT(request: NextRequest) {
       globalRentalMarkup,
       otpServiceMarkups,
       rentalAreaMarkups,
+      cryptoTopupMarkupPercent,
     } = body as {
       usdInrRate?: number;
       globalOtpMarkup?: unknown;
       globalRentalMarkup?: unknown;
       otpServiceMarkups?: unknown;
       rentalAreaMarkups?: unknown;
+      cryptoTopupMarkupPercent?: number;
     };
 
     if (usdInrRate === undefined || typeof usdInrRate !== "number" || usdInrRate < 1 || usdInrRate > 500) {
@@ -81,6 +83,17 @@ export async function PUT(request: NextRequest) {
     }
     if (!isMarkupRule(globalOtpMarkup) || !isMarkupRule(globalRentalMarkup)) {
       return NextResponse.json({ success: false, error: "Invalid global markup object" }, { status: 400 });
+    }
+
+    const cryptoMarkup =
+      typeof cryptoTopupMarkupPercent === "number" && Number.isFinite(cryptoTopupMarkupPercent)
+        ? cryptoTopupMarkupPercent
+        : 0;
+    if (cryptoMarkup < 0 || cryptoMarkup > 50) {
+      return NextResponse.json(
+        { success: false, error: "cryptoTopupMarkupPercent must be between 0 and 50" },
+        { status: 400 }
+      );
     }
 
     const otpRows: { projectId: number; markup: MarkupRule }[] = [];
@@ -116,6 +129,7 @@ export async function PUT(request: NextRequest) {
           globalRentalMarkup: globalRentalMarkup as MarkupRule,
           otpServiceMarkups: otpRows,
           rentalAreaMarkups: rentRows,
+          cryptoTopupMarkupPercent: cryptoMarkup,
         },
       },
       { upsert: true, new: true, runValidators: true }
