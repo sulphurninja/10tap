@@ -18,6 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { countryFlagCode } from "@/lib/countries-display";
 
 type RentalArea = {
   area_code: string;
@@ -52,7 +53,7 @@ type OrderRow = {
 };
 
 function Flag({ code }: { code: string }) {
-  const lc = code.toLowerCase();
+  const lc = countryFlagCode(code);
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -75,7 +76,7 @@ function fmtDate(s: string) {
 
 export default function RentPage() {
   const { refreshUser } = useAuth();
-  const { format: fmtINR } = useCurrency();
+  const { format: fmtUsdt } = useCurrency();
   const [tab, setTab] = useState("browse");
 
   const [areas, setAreas] = useState<RentalArea[]>([]);
@@ -345,8 +346,8 @@ export default function RentPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Long-term rentals</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Dedicated virtual numbers by the month — renew, receive SMS, and manage from one place. Prices from SMS-BUS
-          (USD) are converted to INR using your configured rate.
+          Dedicated virtual numbers by the month — renew, receive SMS, and manage from one place. All prices are shown
+          in USDT and charged from your USDT wallet.
         </p>
       </div>
 
@@ -392,9 +393,8 @@ export default function RentPage() {
                       <span>Min. {a.min_month} mo</span>
                     </div>
                     <p className="text-sm">
-                      <span className="font-semibold text-slate-900">{fmtINR(a.unit_price_inr)}</span>
-                      <span className="text-slate-500"> / month · </span>
-                      <span className="text-slate-400">${(a.unit_price / 100).toFixed(2)} USD/mo</span>
+                      <span className="font-semibold text-slate-900">{fmtUsdt(a.unit_price_inr)}</span>
+                      <span className="text-slate-500"> / month</span>
                     </p>
                     <Button className="w-full bg-sky-600 text-white hover:bg-sky-700" onClick={() => openBook(a)}>
                       <Building2 className="mr-2 size-4" />
@@ -537,7 +537,7 @@ export default function RentPage() {
           <DialogHeader>
             <DialogTitle>Rent {selected?.area_title}</DialogTitle>
             <DialogDescription>
-              Minimum {selected?.min_month} month(s). Total = monthly USD × months, charged in INR to your wallet.
+              Minimum {selected?.min_month} month(s). Total is charged in USDT from your wallet.
             </DialogDescription>
           </DialogHeader>
           {selected && (
@@ -563,8 +563,7 @@ export default function RentPage() {
                   <span className="text-slate-400">Calculating…</span>
                 ) : bookQuote ? (
                   <>
-                    <strong>{fmtINR(bookQuote.amountInr)}</strong>
-                    <span className="text-slate-400"> (${bookQuote.totalUsd.toFixed(2)} USD)</span>
+                    <strong>{fmtUsdt(bookQuote.amountInr)}</strong>
                   </>
                 ) : (
                   <span className="text-slate-400">—</span>
@@ -610,8 +609,7 @@ export default function RentPage() {
                 <span className="text-slate-400">Calculating…</span>
               ) : renewQuote ? (
                 <>
-                  <strong>{fmtINR(renewQuote.amountInr)}</strong>
-                  <span className="text-slate-400"> (${renewQuote.totalUsd.toFixed(2)} USD)</span>
+                  <strong>{fmtUsdt(renewQuote.amountInr)}</strong>
                 </>
               ) : (
                 <span className="text-slate-400">—</span>

@@ -5,6 +5,11 @@ import { ArrowLeft, Check, Copy, Loader2, Search, Phone, Globe, ShoppingBag } fr
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { useCurrency } from "@/lib/currency-context";
+import {
+  countryFlagCode,
+  prepareCountriesForBuy,
+  type SmsCountry,
+} from "@/lib/countries-display";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ServiceIcon } from "@/components/service-icon";
 
-type Country = { id: number; title: string; code: string };
+type Country = SmsCountry;
 
 type EnrichedPrice = {
   country_id: number;
@@ -32,7 +37,7 @@ type EnrichedPrice = {
 type Step = 1 | 2 | 3 | 4;
 
 function FlagImg({ code, size = 24 }: { code: string; size?: number }) {
-  const lc = code.toLowerCase();
+  const lc = countryFlagCode(code);
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -48,7 +53,7 @@ function FlagImg({ code, size = 24 }: { code: string; size?: number }) {
 
 export default function BuyNumberPage() {
   const { refreshUser } = useAuth();
-  const { format: fmt, currency: displayCurrency } = useCurrency();
+  const { format: fmt } = useCurrency();
   const [step, setStep] = useState<Step>(1);
 
   const [countryQuery, setCountryQuery] = useState("");
@@ -80,7 +85,10 @@ export default function BuyNumberPage() {
         const json = await res.json();
         const record = json.data?.data;
         if (!res.ok || !record) { toast.error("Could not load countries"); return; }
-        if (!dead) setCountries(Object.values(record as Record<string, Country>));
+        if (!dead) {
+          const list = Object.values(record as Record<string, Country>);
+          setCountries(prepareCountriesForBuy(list));
+        }
       } finally { if (!dead) setLoadingCountries(false); }
     })();
     return () => { dead = true; };
@@ -325,11 +333,9 @@ export default function BuyNumberPage() {
               <div>
                 <Label className="text-[11px] text-slate-500 uppercase tracking-wider">Price (wallet)</Label>
                 <p className="mt-2 font-mono text-2xl font-bold text-sky-700">{fmt(selectedService.cost)}</p>
-                {displayCurrency !== "INR" && (
-                  <p className="mt-1 text-xs text-slate-400">
-                    ≈ {fmt(selectedService.cost, { currency: "INR" })} debited from your INR wallet
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-slate-400">
+                  Debited from your USDT wallet balance
+                </p>
               </div>
             </div>
             <Button className="w-full bg-sky-600 text-white hover:bg-sky-700 sm:w-auto" disabled={buying} onClick={() => void onBuy()}>

@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       const v = Number(body.amount_usd);
       if (!Number.isFinite(v) || v < MIN_USD) {
         return NextResponse.json(
-          { success: false, error: `USD amount must be at least $${MIN_USD}` },
+          { success: false, error: `Amount must be at least ${MIN_USD} USDT` },
           { status: 400 }
         );
       }
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: `USD equivalent must be at least $${MIN_USD}`,
+            error: `Amount must be at least ${MIN_USD} USDT`,
           },
           { status: 400 }
         );

@@ -2,10 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Script from "next/script";
 import {
   Bitcoin,
-  CreditCard,
   Landmark,
   Loader2,
   Receipt,
@@ -42,29 +40,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-type RazorpayConstructor = new (options: {
-  key: string;
-  amount: number;
-  currency: string;
-  order_id: string;
-  name?: string;
-  description?: string;
-  theme?: { color?: string };
-  handler: (response: {
-    razorpay_payment_id: string;
-    razorpay_order_id: string;
-    razorpay_signature: string;
-  }) => void;
-}) => { open: () => void };
-
-declare global {
-  interface Window {
-    Razorpay: RazorpayConstructor;
-  }
-}
-
 type TxRow = {
   _id: string;
   type: "credit" | "debit";
@@ -75,7 +50,7 @@ type TxRow = {
 };
 
 function formatDate(d: string) {
-  return new Intl.DateTimeFormat("en-IN", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(d));
@@ -101,17 +76,12 @@ function WalletSkeleton() {
 
 function WalletContent() {
   const { user, refreshUser } = useAuth();
-  const { format, pricing, currency } = useCurrency();
+  const { format, pricing } = useCurrency();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [scriptReady, setScriptReady] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [inrAmountStr, setInrAmountStr] = useState("500");
-  const [usdAmountStr, setUsdAmountStr] = useState("10");
-  const [payMethod, setPayMethod] = useState<"razorpay" | "cloudpaya">(
-    "razorpay"
-  );
+  const [usdtAmountStr, setUsdtAmountStr] = useState("10");
   const [paying, setPaying] = useState(false);
 
   const [txLoading, setTxLoading] = useState(true);
@@ -244,111 +214,16 @@ function WalletContent() {
     };
   }, [pendingCryptoTx, checkCryptoStatus, stopPolling, refreshUser, loadTx]);
 
-  const inrAmountNum = Number(inrAmountStr);
-  const validInr = Number.isFinite(inrAmountNum) && inrAmountNum >= 50;
+  const usdtAmountNum = Number(usdtAmountStr);
+  const validUsdt = Number.isFinite(usdtAmountNum) && usdtAmountNum >= 1;
 
-  const usdAmountNum = Number(usdAmountStr);
-  const validUsd = Number.isFinite(usdAmountNum) && usdAmountNum >= 1;
-
-  const rate = pricing.usdInrRate;
   const cryptoMarkup = pricing.cryptoTopupMarkupPercent;
-  const cryptoChargeUsd = validUsd
-    ? Math.round(usdAmountNum * (1 + cryptoMarkup / 100) * 100) / 100
+  const cryptoChargeUsdt = validUsdt
+    ? Math.round(usdtAmountNum * (1 + cryptoMarkup / 100) * 100) / 100
     : 0;
-  const cryptoCreditInr = validUsd
-    ? Math.round(usdAmountNum * rate * 100) / 100
-    : 0;
-
-  // Open the dialog on the tab that matches the user's preferred display currency.
-  useEffect(() => {
-    if (!dialogOpen) return;
-    // If user prefers USD/USDT and Razorpay (INR-only) is selected, nudge to crypto.
-    // Otherwise leave whatever they last picked.
-    setPayMethod((prev) => {
-      if (prev === "razorpay" && currency !== "INR") return "cloudpaya";
-      return prev;
-    });
-  }, [dialogOpen, currency]);
-
-  const payWithRazorpay = async () => {
-    if (!validInr || !scriptReady) {
-      toast.error("Enter at least ₹50 and wait for checkout to load");
-      return;
-    }
-    const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    if (!key) {
-      toast.error("Razorpay key missing — set NEXT_PUBLIC_RAZORPAY_KEY_ID");
-      return;
-    }
-
-    setPaying(true);
-    try {
-      const res = await fetch("/api/wallet/topup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: inrAmountNum }),
-      });
-      const json = (await res.json()) as {
-        data?: {
-          razorpayOrder?: {
-            id: string;
-            amount: number;
-            currency: string;
-          };
-          transaction?: { _id: string };
-        };
-        error?: string;
-      };
-      if (!res.ok) {
-        toast.error(json.error ?? "Could not start payment");
-        return;
-      }
-      const order = json.data?.razorpayOrder;
-      const tx = json.data?.transaction;
-      if (!order?.id || !tx?._id) {
-        toast.error("Invalid top-up response");
-        return;
-      }
-
-      const rzp = new window.Razorpay({
-        key,
-        amount: order.amount,
-        currency: order.currency ?? "INR",
-        order_id: order.id,
-        name: "10tap",
-        description: "Wallet top-up",
-        theme: { color: "#0284c7" },
-        handler: async (response) => {
-          const verify = await fetch("/api/wallet/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              transaction_id: tx._id,
-            }),
-          });
-          const vjson = (await verify.json()) as { error?: string };
-          if (!verify.ok) {
-            toast.error(vjson.error ?? "Verification failed");
-            return;
-          }
-          toast.success("Wallet topped up");
-          setDialogOpen(false);
-          await refreshUser();
-          await loadTx();
-        },
-      });
-      rzp.open();
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const payWithCrypto = async () => {
-    if (!validUsd) {
-      toast.error("Enter at least $1 USD");
+  const payWithUsdt = async () => {
+    if (!validUsdt) {
+      toast.error("Enter at least 1 USDT");
       return;
     }
     setPaying(true);
@@ -356,7 +231,7 @@ function WalletContent() {
       const res = await fetch("/api/wallet/cloudpaya/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount_usd: usdAmountNum }),
+        body: JSON.stringify({ amount_usd: usdtAmountNum }),
       });
       const json = (await res.json()) as {
         data?: {
@@ -378,7 +253,7 @@ function WalletContent() {
         return;
       }
       toast.message("Redirecting to CloudPaya…", {
-        description: `Pay $${json.data?.chargedUsd?.toFixed(2)} · credit $${json.data?.baseUsd?.toFixed(2)}`,
+        description: `Pay ${json.data?.chargedUsd?.toFixed(2)} USDT · credit ${json.data?.baseUsd?.toFixed(2)} USDT`,
       });
       setDialogOpen(false);
       window.location.href = url;
@@ -387,19 +262,8 @@ function WalletContent() {
     }
   };
 
-  const onPay = () => {
-    if (payMethod === "razorpay") void payWithRazorpay();
-    else void payWithCrypto();
-  };
-
   return (
     <>
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        strategy="lazyOnload"
-        onLoad={() => setScriptReady(true)}
-      />
-
       {pendingCryptoTx && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
           <Loader2
@@ -459,8 +323,8 @@ function WalletContent() {
             Wallet
           </h1>
           <p className="text-sm text-slate-600">
-            Credits, debits, and top-ups in one place. Prices shown in{" "}
-            <strong>{currency}</strong>; internal accounting is in INR.
+            Credits, debits, and top-ups in USDT. Top up with USDT (Tron · TRC-20)
+            via CloudPaya.
           </p>
         </div>
 
@@ -473,11 +337,6 @@ function WalletContent() {
               <CardTitle className="mt-2 font-mono text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
                 {user ? format(user.walletBalance) : "—"}
               </CardTitle>
-              {user && currency !== "INR" && (
-                <p className="mt-1 text-xs text-slate-500">
-                  ≈ {format(user.walletBalance, { currency: "INR" })}
-                </p>
-              )}
             </div>
             <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-600">
               <WalletIcon className="size-10" />
@@ -501,155 +360,81 @@ function WalletContent() {
                 </DialogHeader>
 
                 <div className="space-y-5">
-                  <Tabs
-                    value={payMethod}
-                    onValueChange={(v) =>
-                      setPayMethod(v as "razorpay" | "cloudpaya")
-                    }
-                    className="w-full"
-                  >
-                    <TabsList className="grid w-full grid-cols-2 bg-slate-100">
-                      <TabsTrigger value="razorpay" className="gap-1.5 text-sm">
-                        <CreditCard className="size-4" /> Card / UPI
-                      </TabsTrigger>
-                      <TabsTrigger value="cloudpaya" className="gap-1.5 text-sm">
-                        <Bitcoin className="size-4" /> USDT
-                      </TabsTrigger>
-                    </TabsList>
+                  <div className="space-y-2">
+                    <Label htmlFor="usdt-amount" className="text-slate-700">
+                      Credit amount in USDT (min 1)
+                    </Label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-400">
+                        ₮
+                      </span>
+                      <Input
+                        id="usdt-amount"
+                        inputMode="decimal"
+                        value={usdtAmountStr}
+                        onChange={(e) => setUsdtAmountStr(e.target.value)}
+                        className="rounded-xl border-slate-200 pl-7 font-mono text-lg"
+                        placeholder="10"
+                      />
+                    </div>
+                    {!validUsdt && (
+                      <p className="text-xs text-amber-600">Enter 1 USDT or more.</p>
+                    )}
+                  </div>
 
-                    <TabsContent value="razorpay" className="mt-4 space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="inr-amount" className="text-slate-700">
-                          Amount in INR (min ₹50)
-                        </Label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-400">
-                            ₹
-                          </span>
-                          <Input
-                            id="inr-amount"
-                            inputMode="decimal"
-                            value={inrAmountStr}
-                            onChange={(e) => setInrAmountStr(e.target.value)}
-                            className="rounded-xl border-slate-200 pl-7 font-mono text-lg"
-                            placeholder="500"
-                          />
-                        </div>
-                        {!validInr && (
-                          <p className="text-xs text-amber-600">
-                            Enter ₹50 or more.
-                          </p>
-                        )}
-                        {validInr && currency !== "INR" && (
-                          <p className="text-xs text-slate-500">
-                            ≈ {format(inrAmountNum, { currency })}
-                          </p>
-                        )}
-                      </div>
-                      <p className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-600">
-                        Secure checkout with cards, UPI, net-banking and
-                        wallets via Razorpay. Processed in INR.
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                    <div className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <Bitcoin className="size-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-emerald-900">
+                        Pay in USDT (Tron · TRC-20)
                       </p>
-                    </TabsContent>
+                      <p className="text-[11px] leading-relaxed text-emerald-800/80">
+                        Send USDT on the Tron network only via CloudPaya.
+                      </p>
+                    </div>
+                  </div>
 
-                    <TabsContent value="cloudpaya" className="mt-4 space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="usd-amount" className="text-slate-700">
-                          Credit amount in USD (min $1)
-                        </Label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-400">
-                            $
+                  {validUsdt && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Credit to wallet</span>
+                        <span className="font-mono font-semibold text-slate-900">
+                          {usdtAmountNum.toFixed(2)} USDT
+                        </span>
+                      </div>
+                      {cryptoMarkup > 0 && (
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span>Top-up fee ({cryptoMarkup.toFixed(2)}%)</span>
+                          <span className="font-mono">
+                            +{(cryptoChargeUsdt - usdtAmountNum).toFixed(2)} USDT
                           </span>
-                          <Input
-                            id="usd-amount"
-                            inputMode="decimal"
-                            value={usdAmountStr}
-                            onChange={(e) => setUsdAmountStr(e.target.value)}
-                            className="rounded-xl border-slate-200 pl-7 font-mono text-lg"
-                            placeholder="10"
-                          />
-                        </div>
-                        {!validUsd && (
-                          <p className="text-xs text-amber-600">
-                            Enter $1 or more.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                          <Bitcoin className="size-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-emerald-900">
-                            Pay in USDT (Tron · TRC-20)
-                          </p>
-                          <p className="text-[11px] leading-relaxed text-emerald-800/80">
-                            Cheapest fees, fastest confirmation. Send USDT on
-                            the Tron network only.
-                          </p>
-                        </div>
-                      </div>
-
-                      {validUsd && (
-                        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs">
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span>Credit to wallet</span>
-                            <span className="font-mono font-semibold text-slate-900">
-                              {format(cryptoCreditInr)}
-                            </span>
-                          </div>
-                          {cryptoMarkup > 0 && (
-                            <div className="flex items-center justify-between text-slate-500">
-                              <span>Crypto fee ({cryptoMarkup.toFixed(2)}%)</span>
-                              <span className="font-mono">
-                                +${(cryptoChargeUsd - usdAmountNum).toFixed(2)}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
-                            <span className="font-semibold">
-                              You&apos;ll pay on CloudPaya
-                            </span>
-                            <span className="font-mono font-semibold text-slate-900">
-                              ${cryptoChargeUsd.toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="pt-1 text-[11px] text-slate-400">
-                            Pick any coin (BTC, ETH, USDT, SOL…) on the next
-                            page. Rate: 1 USD = ₹{rate.toFixed(2)}.
-                          </p>
                         </div>
                       )}
-                    </TabsContent>
-                  </Tabs>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
+                        <span className="font-semibold">You&apos;ll pay on CloudPaya</span>
+                        <span className="font-mono font-semibold text-slate-900">
+                          {cryptoChargeUsdt.toFixed(2)} USDT
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <Button
                     type="button"
                     className="w-full rounded-xl bg-sky-600 text-white hover:bg-sky-700"
-                    disabled={
-                      paying ||
-                      (payMethod === "razorpay"
-                        ? !validInr || !scriptReady
-                        : !validUsd)
-                    }
-                    onClick={onPay}
+                    disabled={paying || !validUsdt}
+                    onClick={() => void payWithUsdt()}
                   >
                     {paying ? (
                       <>
                         <Loader2 className="mr-1.5 size-4 animate-spin" />
-                        {payMethod === "razorpay" ? "Opening…" : "Redirecting…"}
+                        Redirecting…
                       </>
-                    ) : payMethod === "razorpay" ? (
-                      scriptReady ? (
-                        `Pay ${validInr ? format(inrAmountNum, { currency: "INR" }) : ""}`
-                      ) : (
-                        "Loading checkout…"
-                      )
                     ) : (
                       `Pay with USDT${
-                        validUsd ? ` · $${cryptoChargeUsd.toFixed(2)}` : ""
+                        validUsdt ? ` · ${cryptoChargeUsdt.toFixed(2)}` : ""
                       }`
                     )}
                   </Button>
